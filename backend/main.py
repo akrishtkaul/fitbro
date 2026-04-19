@@ -5,16 +5,19 @@ from database.schema import users_collection, workouts_collection
 from pydantic import BaseModel, Field
 from typing import List, Optional
 from datetime import datetime
-from routers import users, exercises, workouts
+from routers import users, exercises, workouts, chat
 
 app = FastAPI()
 
 app.include_router(users.router)
 app.include_router(exercises.router)
 app.include_router(workouts.router)
+app.include_router(chat.router)
 
 origins = [
-    "http://localhost:3000"
+    "http://localhost:3000",
+    "http://localhost:5173",
+    "http://localhost:5174",
 ]
 
 

@@ -1,11 +1,29 @@
 from fastapi import APIRouter, HTTPException
-from database.models import User, UserUpdate
-from database.schema import users_collection
+from database.models import User, UserUpdate, Workout
+from database.schema import users_collection, workouts_collection
 from pymongo import ReturnDocument
 from pymongo.errors import DuplicateKeyError
+from pydantic import BaseModel
 from bson import ObjectId
 
 router = APIRouter()
+
+class LoginRequest(BaseModel):
+    username: str
+
+@router.post("/api/auth/login", response_model=User, response_model_by_alias=False)
+def login(body: LoginRequest):
+    username = body.username.strip()
+    if not username:
+        raise HTTPException(status_code=400, detail="Username is required.")
+    user = users_collection.find_one({"username": username})
+    if not user:
+        new_user = User(username=username)
+        user_dict = new_user.model_dump(by_alias=True, exclude=["id"])
+        result = users_collection.insert_one(user_dict)
+        user_dict["_id"] = result.inserted_id
+        user = user_dict
+    return User.model_validate(user)
 
 @router.post("/api/users")
 def create_user(user: User ):
@@ -105,6 +123,23 @@ def delete_user(id: str):
         if delete_result.deleted_count == 0:
             raise HTTPException(status_code=404, detail="User not found.")
         return {"message": "User deleted successfully."}
-    
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get(
+    "/api/users/{user_id}/workouts",
+    response_description="Get all workouts for a user",
+    response_model=list[Workout],
+    response_model_by_alias=False,
+)
+def get_user_workouts(user_id: str):
+    """Return all workouts for a user, sorted newest first."""
+    try:
+        workouts = list(
+            workouts_collection.find({"user_id": user_id}).sort("created_at", -1)
+        )
+        return [Workout.model_validate(w) for w in workouts]
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

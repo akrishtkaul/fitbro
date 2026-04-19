@@ -1,109 +1,99 @@
-const WORKOUT = {
-  name: 'PUSH DAY A',
-  date: 'FRI, APR 18, 2026',
-  time: '7:30 AM',
-  duration: '58:00',
-  totalVolume: '4,820',
-  notes: 'Feeling strong today. New bench PR — 90 kg for 8 clean reps. Shoulder tight on OHP, extra warm-up next time.',
-  exercises: [
-    {
-      id: 1,
-      name: 'BARBELL BENCH PRESS',
-      muscles: ['CHEST', 'TRICEPS', 'FRONT DELTS'],
-      sets: [
-        { set: 1, type: 'WARM-UP', weight: '75.0', reps: 12 },
-        { set: 2, type: 'WORKING', weight: '82.5', reps: 10 },
-        { set: 3, type: 'WORKING', weight: '87.5', reps: 8 },
-        { set: 4, type: 'PR',      weight: '90.0', reps: 8 },
-      ],
-    },
-    {
-      id: 2,
-      name: 'INCLINE DUMBBELL PRESS',
-      muscles: ['UPPER CHEST', 'FRONT DELTS'],
-      sets: [
-        { set: 1, type: 'WORKING', weight: '30.0', reps: 12 },
-        { set: 2, type: 'WORKING', weight: '32.0', reps: 10 },
-        { set: 3, type: 'WORKING', weight: '34.0', reps: 9 },
-      ],
-    },
-    {
-      id: 3,
-      name: 'OVERHEAD PRESS',
-      muscles: ['SHOULDERS', 'TRICEPS', 'CORE'],
-      sets: [
-        { set: 1, type: 'WARM-UP', weight: '40.0', reps: 10 },
-        { set: 2, type: 'WORKING', weight: '55.0', reps: 8 },
-        { set: 3, type: 'WORKING', weight: '55.0', reps: 7 },
-      ],
-    },
-  ],
-}
+import { useState, useEffect } from 'react'
+import {
+  getUserWorkouts,
+  deleteWorkout,
+  deleteExerciseFromWorkout,
+  updateExerciseInWorkout,
+} from '../services/api'
+import { useAuth } from '../contexts/AuthContext'
 
-function IconArrowLeft() {
-  return (
-    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" />
-    </svg>
-  )
-}
+function IconEdit()  { return <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg> }
+function IconTrash() { return <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg> }
+function IconArrowLeft() { return <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" /></svg> }
 
-function IconEdit() {
-  return (
-    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-    </svg>
-  )
-}
+function ExerciseCard({ exercise, index, workoutId, onUpdated, onDeleted }) {
+  const [editing, setEditing]   = useState(false)
+  const [saving, setSaving]     = useState(false)
+  const [removing, setRemoving] = useState(false)
+  const [error, setError]       = useState('')
+  const [form, setForm]         = useState({
+    exercise_id: exercise.exercise_id,
+    name:        exercise.name,
+    sets:        exercise.sets,
+    reps:        exercise.reps,
+    weight:      exercise.weight,
+  })
 
-function IconTrash() {
-  return (
-    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-    </svg>
-  )
-}
+  function handleChange(e) {
+    setForm(prev => ({ ...prev, [e.target.name]: e.target.value }))
+  }
 
-function ExerciseCard({ exercise }) {
-  const maxWeight = Math.max(...exercise.sets.map((s) => parseFloat(s.weight)))
-  const totalVolume = exercise.sets.reduce((a, s) => a + parseFloat(s.weight) * s.reps, 0)
+  async function handleSave() {
+    setSaving(true)
+    setError('')
+    try {
+      const res = await updateExerciseInWorkout(workoutId, index, {
+        exercise_id: form.exercise_id,
+        name:        form.name,
+        sets:        parseInt(form.sets)    || 0,
+        reps:        parseInt(form.reps)    || 0,
+        weight:      parseFloat(form.weight) || 0,
+      })
+      onUpdated(res.data)
+      setEditing(false)
+    } catch {
+      setError('Failed to save. Try again.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function handleRemove() {
+    setRemoving(true)
+    try {
+      const res = await deleteExerciseFromWorkout(workoutId, index)
+      onDeleted(res.data)
+    } catch {
+      setError('Failed to remove exercise.')
+      setRemoving(false)
+    }
+  }
 
   return (
     <div className="border border-slate-700 bg-slate-900">
-
-      {/* Exercise header — red left border accent */}
+      {/* Header */}
       <div className="border-l-4 border-red-600">
         <div className="flex items-start justify-between px-4 py-4 border-b border-slate-700">
           <div>
-            <h3 className="text-white font-black text-sm tracking-wide mb-1">{exercise.name}</h3>
-            <p className="text-slate-500 text-xs font-semibold tracking-widest">
-              {exercise.muscles.join(' · ')}
-            </p>
+            <h3 className="text-white font-black text-sm tracking-wide uppercase">{exercise.name}</h3>
           </div>
           <div className="flex gap-2 ml-4 flex-shrink-0">
             <button
               type="button"
+              onClick={() => { setEditing(!editing); setError('') }}
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold tracking-wider text-slate-400 border border-slate-700 hover:border-slate-500 hover:text-white transition"
             >
               <IconEdit />
-              EDIT
+              {editing ? 'CANCEL' : 'EDIT'}
             </button>
             <button
               type="button"
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold tracking-wider text-red-500 border border-red-900 hover:bg-red-600 hover:text-white hover:border-red-600 transition"
+              onClick={handleRemove}
+              disabled={removing}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold tracking-wider text-red-500 border border-red-900 hover:bg-red-600 hover:text-white hover:border-red-600 disabled:opacity-40 transition"
             >
               <IconTrash />
-              REMOVE
+              {removing ? '...' : 'REMOVE'}
             </button>
           </div>
         </div>
 
-        {/* Mini stats */}
+        {/* Stats */}
         <div className="grid grid-cols-3 border-b border-slate-700 bg-slate-800/40">
           {[
-            { label: 'SETS', value: exercise.sets.length },
-            { label: 'MAX WEIGHT', value: `${maxWeight} KG` },
-            { label: 'VOLUME', value: `${totalVolume.toLocaleString()} KG` },
+            { label: 'SETS',   value: exercise.sets   },
+            { label: 'REPS',   value: exercise.reps   },
+            { label: 'WEIGHT', value: `${exercise.weight} LBS` },
           ].map((s, i) => (
             <div key={s.label} className={`px-4 py-3 ${i < 2 ? 'border-r border-slate-700' : ''}`}>
               <p className="text-white font-black text-base num leading-none">{s.value}</p>
@@ -113,156 +103,232 @@ function ExerciseCard({ exercise }) {
         </div>
       </div>
 
-      {/* Set table header */}
-      <div className="grid grid-cols-12 px-4 py-2 bg-slate-800/60 border-b border-slate-700">
-        <div className="col-span-1 text-xs font-black text-slate-600 uppercase tracking-widest">SET</div>
-        <div className="col-span-3 text-xs font-black text-slate-600 uppercase tracking-widest">TYPE</div>
-        <div className="col-span-4 text-xs font-black text-slate-600 uppercase tracking-widest text-right">WEIGHT</div>
-        <div className="col-span-4 text-xs font-black text-slate-600 uppercase tracking-widest text-right">REPS</div>
-      </div>
-
-      {/* Set rows */}
-      {exercise.sets.map((s, idx) => {
-        const isPR = s.type === 'PR'
-        const isLast = idx === exercise.sets.length - 1
-        return (
-          <div
-            key={s.set}
-            className={`grid grid-cols-12 items-center px-4 py-3 ${!isLast ? 'border-b border-slate-800' : ''} ${isPR ? 'bg-red-950/50' : 'hover:bg-slate-800/30'} transition`}
-          >
-            <div className="col-span-1">
-              <span className="text-slate-600 text-sm font-bold num">{s.set}</span>
-            </div>
-            <div className="col-span-3">
-              {isPR ? (
-                <span className="inline-block bg-red-600 text-white text-xs font-black px-2 py-0.5 tracking-wider">
-                  PR
-                </span>
-              ) : (
-                <span className="text-slate-600 text-xs font-semibold uppercase tracking-wide">{s.type}</span>
-              )}
-            </div>
-            <div className="col-span-4 text-right">
-              <span className={`text-xl font-black num leading-none ${isPR ? 'text-red-400' : 'text-white'}`}>
-                {s.weight}
-              </span>
-              <span className="text-slate-600 text-xs font-semibold ml-1">KG</span>
-            </div>
-            <div className="col-span-4 text-right">
-              <span className={`text-xl font-black num leading-none ${isPR ? 'text-red-400' : 'text-white'}`}>
-                {s.reps}
-              </span>
-              <span className="text-slate-600 text-xs font-semibold ml-1">REPS</span>
-            </div>
+      {/* Edit form */}
+      {editing && (
+        <div className="p-4 border-t border-slate-800 bg-slate-800/20">
+          {error && <p className="text-red-400 text-xs mb-3 font-semibold">{error}</p>}
+          <div className="grid grid-cols-3 gap-3 mb-3">
+            {[
+              { name: 'sets',   label: 'SETS',   step: '1'   },
+              { name: 'reps',   label: 'REPS',   step: '1'   },
+              { name: 'weight', label: 'WEIGHT', step: '0.5' },
+            ].map(f => (
+              <div key={f.name}>
+                <label className="block text-xs font-black text-slate-600 uppercase tracking-widest mb-1">{f.label}</label>
+                <input
+                  name={f.name}
+                  type="number"
+                  step={f.step}
+                  value={form[f.name]}
+                  onChange={handleChange}
+                  className="w-full bg-slate-800 border border-slate-700 px-3 py-2 text-white font-black text-sm num text-center focus:outline-none focus:border-red-600 transition"
+                />
+              </div>
+            ))}
           </div>
-        )
-      })}
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={saving}
+            className="w-full py-2.5 bg-red-600 hover:bg-red-700 disabled:bg-red-900 text-white font-black text-xs uppercase tracking-widest transition"
+          >
+            {saving ? 'SAVING...' : 'SAVE CHANGES'}
+          </button>
+        </div>
+      )}
     </div>
   )
 }
 
-export default function WorkoutDetail() {
-  const totalSets = WORKOUT.exercises.reduce((a, e) => a + e.sets.length, 0)
-  const totalReps = WORKOUT.exercises.reduce((a, e) => a + e.sets.reduce((b, s) => b + s.reps, 0), 0)
+export default function WorkoutDetail({ onNavigate }) {
+  const { user } = useAuth()
+  const [workout, setWorkout]   = useState(null)
+  const [workouts, setWorkouts] = useState([])  // for picker
+  const [loading, setLoading]   = useState(true)
+  const [error, setError]       = useState('')
+  const [deleting, setDeleting] = useState(false)
+
+  useEffect(() => {
+    async function fetchLatest() {
+      try {
+        const res = await getUserWorkouts(user.id)
+        const list = res.data
+        setWorkouts(list)
+        if (list.length > 0) setWorkout(list[0])
+      } catch {
+        setError('Failed to load workout. Is the backend running?')
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchLatest()
+  }, [])
+
+  async function handleDeleteWorkout() {
+    if (!workout) return
+    const id = workout.id ?? workout._id
+    setDeleting(true)
+    try {
+      await deleteWorkout(id)
+      const remaining = workouts.filter(w => (w.id ?? w._id) !== id)
+      setWorkouts(remaining)
+      setWorkout(remaining[0] ?? null)
+    } catch {
+      setError('Failed to delete workout.')
+    } finally {
+      setDeleting(false)
+    }
+  }
+
+  function handleExerciseUpdated(updatedWorkout) {
+    setWorkout(updatedWorkout)
+  }
+
+  function handleExerciseDeleted(updatedWorkout) {
+    setWorkout(updatedWorkout)
+  }
+
+  // ── Loading ──────────────────────────────────────────────────────────────────
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-950 py-8 px-4">
+        <div className="max-w-3xl mx-auto space-y-4 animate-pulse">
+          <div className="h-12 bg-slate-900 border border-slate-800 w-48" />
+          <div className="h-32 bg-slate-900 border border-slate-800" />
+          <div className="h-24 bg-slate-900 border border-slate-800" />
+          <div className="h-48 bg-slate-900 border border-slate-800" />
+        </div>
+      </div>
+    )
+  }
+
+  const workoutId = workout?.id ?? workout?._id
+  const totalSets = workout?.exercises?.reduce((a, e) => a + (e.sets ?? 0), 0) ?? 0
+  const totalReps = workout?.exercises?.reduce((a, e) => a + (e.sets ?? 0) * (e.reps ?? 0), 0) ?? 0
+  const totalVolume = workout?.exercises?.reduce((a, e) => a + (e.sets ?? 0) * (e.reps ?? 0) * (e.weight ?? 0), 0) ?? 0
+  const date = workout?.created_at ? new Date(workout.created_at) : null
+  const dateStr = date
+    ? date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }).toUpperCase()
+    : 'N/A'
 
   return (
     <div className="min-h-screen bg-slate-950 py-8 px-4">
       <div className="max-w-3xl mx-auto">
 
-        {/* Back + Actions */}
-        <div className="flex items-center justify-between mb-8">
-          <button type="button" className="flex items-center gap-1.5 text-slate-400 hover:text-white text-xs font-black tracking-widest uppercase transition">
+        {/* Back + workout picker */}
+        <div className="flex items-center justify-between mb-6">
+          <button type="button" onClick={() => onNavigate?.('history')} className="flex items-center gap-1.5 text-slate-400 hover:text-white text-xs font-black tracking-widest uppercase transition">
             <IconArrowLeft />
             HISTORY
           </button>
-          <div className="flex gap-2">
-            <button
-              type="button"
-              className="flex items-center gap-2 px-4 py-2 text-xs font-black tracking-wider text-slate-300 border border-slate-700 hover:border-slate-500 hover:text-white transition"
+
+          {workouts.length > 1 && (
+            <select
+              value={workoutId}
+              onChange={e => setWorkout(workouts.find(w => (w.id ?? w._id) === e.target.value))}
+              className="bg-slate-900 border border-slate-700 text-slate-400 px-3 py-1.5 text-xs font-bold uppercase focus:outline-none focus:border-red-600 cursor-pointer"
             >
-              <IconEdit />
-              EDIT WORKOUT
-            </button>
-            <button
-              type="button"
-              className="flex items-center gap-2 px-4 py-2 text-xs font-black tracking-wider text-white bg-red-600 hover:bg-red-700 transition"
-            >
-              <IconTrash />
-              DELETE
-            </button>
-          </div>
+              {workouts.map(w => {
+                const wId = w.id ?? w._id
+                const wDate = w.created_at ? new Date(w.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }).toUpperCase() : 'N/A'
+                return <option key={wId} value={wId}>{wDate} — {w.exercises?.length ?? 0} EXERCISES</option>
+              })}
+            </select>
+          )}
         </div>
 
-        {/* Workout title */}
-        <div className="mb-6">
-          <h1 className="text-5xl font-black text-white tracking-tight leading-none mb-3">
-            {WORKOUT.name}
-          </h1>
-          <p className="text-slate-500 text-sm font-semibold tracking-wider">
-            {WORKOUT.date}&nbsp;&nbsp;·&nbsp;&nbsp;{WORKOUT.time}&nbsp;&nbsp;·&nbsp;&nbsp;{WORKOUT.duration}
-          </p>
-        </div>
-
-        {/* Stats bar — no rounded corners, strong borders */}
-        <div className="grid grid-cols-4 border border-slate-700 mb-6">
-          {[
-            { value: WORKOUT.exercises.length.toString(), label: 'EXERCISES' },
-            { value: totalSets.toString(), label: 'SETS' },
-            { value: totalReps.toString(), label: 'TOTAL REPS' },
-            { value: WORKOUT.totalVolume, label: 'VOLUME (KG)' },
-          ].map((stat, i) => (
-            <div
-              key={stat.label}
-              className={`py-4 px-3 text-center ${i < 3 ? 'border-r border-slate-700' : ''}`}
-            >
-              <p className="text-3xl font-black text-white num leading-none mb-2">{stat.value}</p>
-              <p className="text-xs text-slate-600 font-bold uppercase tracking-widest">{stat.label}</p>
-            </div>
-          ))}
-        </div>
-
-        {/* Error state shell */}
-        <div className="hidden items-center gap-3 bg-red-950 border-l-4 border-red-600 px-4 py-3 mb-6">
-          <p className="text-red-400 text-sm font-semibold">Failed to load workout. Please try again.</p>
-        </div>
-
-        {/* Notes */}
-        {WORKOUT.notes && (
-          <div className="border-l-2 border-red-700 pl-4 mb-8">
-            <p className="text-xs font-bold text-slate-600 uppercase tracking-widest mb-1">NOTES</p>
-            <p className="text-slate-400 text-sm leading-relaxed">{WORKOUT.notes}</p>
+        {/* Error */}
+        {error && (
+          <div className="bg-red-950 border-l-4 border-red-600 px-4 py-3 mb-6">
+            <p className="text-red-400 text-sm font-semibold">{error}</p>
           </div>
         )}
 
-        {/* Exercise list */}
-        <div className="space-y-4 mb-6">
-          {WORKOUT.exercises.map((ex) => (
-            <ExerciseCard key={ex.id} exercise={ex} />
-          ))}
-        </div>
+        {/* No workouts */}
+        {!workout && !error && (
+          <div className="border border-slate-800 flex flex-col items-center py-20 text-center">
+            <p className="text-slate-700 font-black text-5xl mb-4">0</p>
+            <p className="text-white font-black text-xl uppercase tracking-wide mb-2">NO WORKOUTS LOGGED</p>
+            <p className="text-slate-500 text-sm">Log a workout to see it here</p>
+          </div>
+        )}
 
-        {/* Skeleton shell */}
-        <div className="hidden space-y-4 mb-6">
-          {[1, 2].map((n) => (
-            <div key={n} className="border border-slate-800 bg-slate-900 animate-pulse">
-              <div className="border-l-4 border-slate-700 px-4 py-4 border-b border-slate-800">
-                <div className="h-4 bg-slate-800 rounded w-48 mb-2" />
-                <div className="h-3 bg-slate-800 rounded w-32" />
+        {workout && (
+          <>
+            {/* Workout header */}
+            <div className="bg-slate-900 border border-slate-700 mb-6">
+              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 p-6 border-b border-slate-700">
+                <div>
+                  <p className="text-slate-500 text-xs uppercase tracking-widest font-bold mb-2">{dateStr}</p>
+                  <h1 className="text-4xl font-black text-white tracking-tight leading-none">
+                    WORKOUT
+                  </h1>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={handleDeleteWorkout}
+                    disabled={deleting}
+                    className="flex items-center gap-2 px-4 py-2.5 text-xs font-black tracking-wider text-white bg-red-600 hover:bg-red-700 disabled:bg-red-900 disabled:text-red-700 transition"
+                  >
+                    <IconTrash />
+                    {deleting ? 'DELETING...' : 'DELETE'}
+                  </button>
+                </div>
               </div>
-              <div className="p-4 space-y-3">
-                {[1, 2, 3].map((r) => <div key={r} className="h-10 bg-slate-800 rounded" />)}
+
+              {/* Overall stats */}
+              <div className="grid grid-cols-4">
+                {[
+                  { value: workout.exercises?.length ?? 0, label: 'EXERCISES' },
+                  { value: totalSets,                       label: 'SETS' },
+                  { value: totalReps,                       label: 'REPS' },
+                  { value: Math.round(totalVolume).toLocaleString(), label: 'VOLUME LBS' },
+                ].map((s, i) => (
+                  <div key={s.label} className={`py-4 px-3 text-center ${i < 3 ? 'border-r border-slate-700' : ''}`}>
+                    <p className="text-2xl font-black text-white num leading-none mb-1">{s.value}</p>
+                    <p className="text-xs text-slate-600 font-bold uppercase tracking-widest">{s.label}</p>
+                  </div>
+                ))}
               </div>
+
+              {/* Notes */}
+              {workout.notes && (
+                <div className="border-t border-slate-700 px-6 py-4">
+                  <p className="text-xs font-bold text-slate-600 uppercase tracking-widest mb-1">NOTES</p>
+                  <p className="text-slate-400 text-sm leading-relaxed">{workout.notes}</p>
+                </div>
+              )}
             </div>
-          ))}
-        </div>
 
-        {/* Repeat button */}
-        <button
-          type="button"
-          className="w-full py-4 bg-red-600 hover:bg-red-700 text-white font-black uppercase tracking-widest text-sm transition"
-        >
-          REPEAT THIS WORKOUT
-        </button>
+            {/* Exercise cards */}
+            <div className="space-y-4 mb-6">
+              {workout.exercises?.length > 0 ? (
+                workout.exercises.map((ex, idx) => (
+                  <ExerciseCard
+                    key={`${ex.exercise_id}-${idx}`}
+                    exercise={ex}
+                    index={idx}
+                    workoutId={workoutId}
+                    onUpdated={handleExerciseUpdated}
+                    onDeleted={handleExerciseDeleted}
+                  />
+                ))
+              ) : (
+                <div className="border border-dashed border-slate-800 flex flex-col items-center py-12 text-center">
+                  <p className="text-slate-500 font-bold text-sm uppercase tracking-wide">NO EXERCISES IN THIS WORKOUT</p>
+                </div>
+              )}
+            </div>
+
+            <button
+              type="button"
+              className="w-full py-4 bg-red-600 hover:bg-red-700 text-white font-black uppercase tracking-widest text-sm transition"
+            >
+              REPEAT THIS WORKOUT
+            </button>
+          </>
+        )}
 
       </div>
     </div>
